@@ -1,78 +1,13 @@
 
+import base64
 import json
-import re
 
-
-SKILLS = [
-    "Python",
-    "Java",
-    "JavaScript",
-    "SQL",
-    "PL/SQL",
-    "AWS",
-    "Azure",
-    "GCP",
-    "Terraform",
-    "Docker",
-    "Kubernetes",
-    "Databricks",
-    "Django",
-    "Flask",
-    "FastAPI",
-    "Machine Learning",
-    "Deep Learning",
-    "Generative AI",
-    "LLM",
-    "REST API",
-    "Git",
-    "Linux",
-    "Oracle",
-    "PostgreSQL",
-    "MongoDB",
-]
-
-
-def extract_skills(text):
-    """Extract recognized skills from the supplied text."""
-    found = []
-
-    for skill in SKILLS:
-        pattern = r"(?<!\w)" + re.escape(skill) + r"(?!\w)"
-
-        if re.search(pattern, text, re.IGNORECASE):
-            found.append(skill)
-
-    return found
-
-
-def analyze_career(resume_text, job_description):
-    """Compare resume skills with job-description skills."""
-    resume_skills = extract_skills(resume_text)
-    required_skills = extract_skills(job_description)
-
-    matched_skills = [
-        skill for skill in required_skills
-        if skill in resume_skills
-    ]
-
-    missing_skills = [
-        skill for skill in required_skills
-        if skill not in resume_skills
-    ]
-
-    match_percentage = (
-        round(len(matched_skills) / len(required_skills) * 100, 2)
-        if required_skills
-        else 0
-    )
-
-    return {
-        "match_percentage": match_percentage,
-        "matched_skills": matched_skills,
-        "missing_skills": missing_skills,
-        "resume_skills": resume_skills,
-        "required_skills": required_skills,
-    }
+try:
+    from services.career_analyzer import analyze_career
+except ModuleNotFoundError as exc:
+    if exc.name != "services":
+        raise
+    from backend.services.career_analyzer import analyze_career
 
 
 def response(status_code, data):
@@ -87,10 +22,7 @@ def response(status_code, data):
 
 def lambda_handler(event, context):
     path = event.get("path", "/health")
-    method = event.get(
-        "httpMethod",
-        "GET"
-    )
+    method = event.get("httpMethod", "GET")
 
     if path.endswith("/health") and method == "GET":
         return response(200, {
@@ -103,7 +35,6 @@ def lambda_handler(event, context):
             body = event.get("body") or "{}"
 
             if event.get("isBase64Encoded"):
-                import base64
                 body = base64.b64decode(body).decode("utf-8")
 
             if isinstance(body, str):
@@ -121,7 +52,9 @@ def lambda_handler(event, context):
                 job_description, str
             ):
                 return response(400, {
-                    "error": "resume_text and job_description must be strings"
+                    "error": (
+                        "resume_text and job_description must be strings"
+                    )
                 })
 
             if not resume_text.strip() or not job_description.strip():
@@ -131,14 +64,17 @@ def lambda_handler(event, context):
                     )
                 })
 
-            return response(
-                200,
-                analyze_career(resume_text, job_description)
-            )
+            result = analyze_career(resume_text, job_description)
+            return response(200, result)
 
         except (json.JSONDecodeError, UnicodeDecodeError):
             return response(400, {
                 "error": "Invalid JSON request body"
+            })
+
+        except (ValueError, TypeError):
+            return response(400, {
+                "error": "Invalid request data"
             })
 
     return response(404, {
