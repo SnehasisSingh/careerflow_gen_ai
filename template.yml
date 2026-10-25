@@ -34,6 +34,12 @@ Resources:
             Path: /health
             Method: get
 
+        CareerAnalyzeEvent:
+          Type: Api
+          Properties:
+            Path: /career/analyze
+            Method: post
+
   CareerFlowTable:
     Type: AWS::DynamoDB::Table
     Properties:
