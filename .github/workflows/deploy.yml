@@ -1,4 +1,3 @@
-
 name: Deploy CareerFlow AI to AWS
 
 on:
@@ -9,7 +8,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
   deploy:
@@ -27,26 +25,31 @@ jobs:
         with:
           python-version: '3.12'
 
-      # 3. Connect GitHub Actions to AWS using OIDC
+      # 3. Connect GitHub Actions to AWS using access keys
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      # 4. Install AWS SAM CLI
+      # 4. Verify AWS connection
+      - name: Verify AWS identity
+        run: aws sts get-caller-identity
+
+      # 5. Install AWS SAM CLI
       - name: Setup AWS SAM CLI
         uses: aws-actions/setup-sam@v2
 
-      # 5. Validate the infrastructure template
+      # 6. Validate infrastructure template
       - name: Validate SAM template
         run: sam validate --template-file template.yml
 
-      # 6. Build the Lambda application
+      # 7. Build the Lambda application
       - name: Build application
         run: sam build --template-file template.yml
 
-      # 7. Deploy AWS resources
+      # 8. Deploy AWS resources
       - name: Deploy to AWS
         run: |
           sam deploy \
