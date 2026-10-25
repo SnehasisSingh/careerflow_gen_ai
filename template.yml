@@ -1,0 +1,68 @@
+
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: CareerFlow AI - Serverless infrastructure
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 15
+    MemorySize: 256
+
+Resources:
+
+  CareerFlowFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: careerflow-ai-api
+      CodeUri: backend/
+      Handler: handler.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CareerFlowTable
+        - S3ReadPolicy:
+            BucketName: !Ref CareerFlowBucket
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref CareerFlowTable
+          BUCKET_NAME: !Ref CareerFlowBucket
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /health
+            Method: get
+
+  CareerFlowTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: session_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: session_id
+          KeyType: HASH
+
+  CareerFlowBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+Outputs:
+  ApiUrl:
+    Description: CareerFlow API endpoint
+    Value: !Sub
+      - https://${ApiId}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/health
+      - ApiId: !Ref ServerlessRestApi
+
+  TableName:
+    Value: !Ref CareerFlowTable
+
+  BucketName:
+    Value: !Ref CareerFlowBucket

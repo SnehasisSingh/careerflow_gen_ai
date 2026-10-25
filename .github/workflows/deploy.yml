@@ -1,0 +1,59 @@
+
+name: Deploy CareerFlow AI to AWS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    name: Build and Deploy AWS Resources
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Download repository code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Configure Python
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # 3. Connect GitHub Actions to AWS using OIDC
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      # 4. Install AWS SAM CLI
+      - name: Setup AWS SAM CLI
+        uses: aws-actions/setup-sam@v2
+
+      # 5. Validate the infrastructure template
+      - name: Validate SAM template
+        run: sam validate --template-file template.yml
+
+      # 6. Build the Lambda application
+      - name: Build application
+        run: sam build --template-file template.yml
+
+      # 7. Deploy AWS resources
+      - name: Deploy to AWS
+        run: |
+          sam deploy \
+            --template-file .aws-sam/build/template.yaml \
+            --stack-name careerflow-ai-dev \
+            --region "${{ vars.AWS_REGION }}" \
+            --resolve-s3 \
+            --capabilities CAPABILITY_IAM \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset
