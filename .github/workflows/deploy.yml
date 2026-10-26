@@ -34,17 +34,41 @@ jobs:
           aws-region: ${{ vars.AWS_REGION }}
 
       # 3.1. Verify Claude API secret exists
-      - name: Verify Claude API configuration
+      # Sync GitHub secret to AWS Secrets Manager
+      - name: Sync Claude API key to AWS Secrets Manager
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         shell: bash
         run: |
+          set -euo pipefail
+
           if [ -z "$ANTHROPIC_API_KEY" ]; then
-            echo "::error::ANTHROPIC_API_KEY is missing from GitHub Secrets."
+            echo "::error::ANTHROPIC_API_KEY is missing."
             exit 1
           fi
-          echo "Claude API secret is configured."
 
+          SECRET_ID="careerflow/anthropic-api-key"
+          SECRET_FILE="$RUNNER_TEMP/anthropic-secret.txt"
+
+          printf '%s' "$ANTHROPIC_API_KEY" > "$SECRET_FILE"
+          chmod 600 "$SECRET_FILE"
+
+          if aws secretsmanager describe-secret \
+            --secret-id "$SECRET_ID" >/dev/null 2>&1; then
+
+            aws secretsmanager put-secret-value \
+              --secret-id "$SECRET_ID" \
+              --secret-string "file://$SECRET_FILE" \
+              >/dev/null
+          else
+            aws secretsmanager create-secret \
+              --name "$SECRET_ID" \
+              --secret-string "file://$SECRET_FILE" \
+              >/dev/null
+          fi
+
+          rm -f "$SECRET_FILE"
+          echo "Claude secret synchronized successfully."
       # 4. Verify AWS connection
       - name: Verify AWS identity
         run: aws sts get-caller-identity
