@@ -1,4 +1,3 @@
-
 import os
 
 import requests
@@ -29,6 +28,22 @@ api_url = st.sidebar.text_input(
     value=os.getenv("CAREERFLOW_API_URL", DEFAULT_API_URL),
 )
 
+# Claude is optional to help control API costs.
+use_claude = st.toggle(
+    "Enable Claude AI Feedback",
+    value=False,
+    help=(
+        "Get AI-generated resume feedback, strengths, improvement areas, "
+        "suggested resume bullets, and interview questions. "
+        "Enabling this makes a paid Claude API request."
+    ),
+)
+
+if use_claude:
+    st.info("Claude AI feedback is enabled. This may incur API charges.")
+else:
+    st.caption("Claude AI feedback is off. Only skill matching will run.")
+
 resume_text = st.text_area(
     "Paste your resume",
     height=250,
@@ -52,14 +67,19 @@ if st.button("Analyze Resume", type="primary"):
         payload = {
             "resume_text": resume_text,
             "job_description": job_description,
+            "use_claude": use_claude,
         }
 
         try:
-            with st.spinner("Analyzing your resume..."):
+            with st.spinner(
+                "Analyzing resume with Claude..."
+                if use_claude
+                else "Analyzing your resume..."
+            ):
                 response = requests.post(
                     api_url.strip(),
                     json=payload,
-                    timeout=30,
+                    timeout=90 if use_claude else 30,
                 )
 
             if response.ok:
@@ -101,19 +121,93 @@ if st.button("Analyze Resume", type="primary"):
                     st.write("**Required skills**")
                     st.write(result.get("required_skills", []))
 
+                # Display Claude's qualitative feedback if requested.
+                claude_feedback = result.get("claude_feedback")
+
+                if use_claude:
+                    st.divider()
+                    st.header("🤖 Claude AI Resume Feedback")
+
+                    if claude_feedback:
+                        st.write("### Summary")
+                        st.write(claude_feedback.get("summary", ""))
+
+                        st.write("### 💪 Strengths")
+                        strengths = claude_feedback.get("strengths", [])
+                        if strengths:
+                            for item in strengths:
+                                st.write(f"- {item}")
+                        else:
+                            st.info("No strengths returned.")
+
+                        st.write("### 🎯 Improvement Areas")
+                        improvements = claude_feedback.get(
+                            "improvement_areas", []
+                        )
+                        if improvements:
+                            for item in improvements:
+                                st.write(f"- {item}")
+                        else:
+                            st.info("No improvement areas returned.")
+
+                        st.write("### 📝 Suggested Resume Bullets")
+                        bullets = claude_feedback.get(
+                            "suggested_resume_bullets", []
+                        )
+                        if bullets:
+                            for item in bullets:
+                                st.write(f"- {item}")
+                        else:
+                            st.info("No suggested bullets returned.")
+
+                        st.write("### 🎤 Interview Questions")
+                        questions = claude_feedback.get(
+                            "interview_questions", []
+                        )
+                        if questions:
+                            for index, question in enumerate(
+                                questions, start=1
+                            ):
+                                st.write(f"{index}. {question}")
+                        else:
+                            st.info("No interview questions returned.")
+
+                    else:
+                        st.warning(
+                            "The API did not return Claude feedback. "
+                            "Check the API response and backend logs."
+                        )
+
                 st.caption(
-                    "This score measures recognized keyword overlap. "
-                    "It is not a complete assessment of candidate suitability."
+                    "The skill-match score measures recognized keyword "
+                    "overlap. It is not a complete assessment of "
+                    "candidate suitability."
                 )
 
             else:
+                try:
+                    error_data = response.json()
+                except ValueError:
+                    error_data = {}
+
                 st.error(
-                    f"API request failed ({response.status_code}). "
-                    "Check the API URL and try again."
+                    f"API request failed ({response.status_code})."
                 )
 
-        except requests.RequestException as exc:
-            st.error(f"Could not connect to the CareerLens API: {exc}")
+                if error_data.get("error"):
+                    st.write(error_data["error"])
+
+                if error_data.get("skill_analysis"):
+                    st.info(
+                        "The regular skill analysis succeeded, but "
+                        "Claude feedback could not be generated."
+                    )
+
+        except requests.RequestException:
+            st.error(
+                "Could not connect to the CareerLens API. "
+                "Check your connection and API URL, then try again."
+            )
 
         except (ValueError, TypeError):
             st.error("The API returned an invalid response.")
