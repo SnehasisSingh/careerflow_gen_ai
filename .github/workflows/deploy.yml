@@ -33,6 +33,18 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.AWS_REGION }}
 
+      # 3.1. Verify Claude API secret exists
+      - name: Verify Claude API configuration
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        shell: bash
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::error::ANTHROPIC_API_KEY is missing from GitHub Secrets."
+            exit 1
+          fi
+          echo "Claude API secret is configured."
+
       # 4. Verify AWS connection
       - name: Verify AWS identity
         run: aws sts get-caller-identity

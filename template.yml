@@ -27,6 +27,8 @@ Resources:
         Variables:
           TABLE_NAME: !Ref CareerFlowTable
           BUCKET_NAME: !Ref CareerFlowBucket
+          ANTHROPIC_API_KEY: '{{resolve:secretsmanager:careerflow/anthropic-api-key:SecretString}}'
+          ANTHROPIC_MODEL: 'claude-haiku-5-5'
       Events:
         ApiEvent:
           Type: Api
