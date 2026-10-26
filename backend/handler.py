@@ -4,10 +4,18 @@ import json
 
 try:
     from services.career_analyzer import analyze_career
+    from services.claude_analyzer import (
+        ClaudeAnalysisError,
+        analyze_resume_with_claude,
+    )
 except ModuleNotFoundError as exc:
     if exc.name != "services":
         raise
     from backend.services.career_analyzer import analyze_career
+    from backend.services.claude_analyzer import (
+        ClaudeAnalysisError,
+        analyze_resume_with_claude,
+    )
 
 
 def response(status_code, data):
@@ -64,7 +72,38 @@ def lambda_handler(event, context):
                     )
                 })
 
-            result = analyze_career(resume_text, job_description)
+            # Preserve the existing deterministic skill analysis.
+            result = analyze_career(
+                resume_text,
+                job_description,
+            )
+
+            # Claude analysis is opt-in to control API costs.
+            use_claude = body.get("use_claude", False)
+
+            if not isinstance(use_claude, bool):
+                return response(400, {
+                    "error": "use_claude must be a boolean"
+                })
+
+            if use_claude:
+                try:
+                    claude_feedback = analyze_resume_with_claude(
+                        resume_text,
+                        job_description,
+                    )
+                    result["claude_feedback"] = claude_feedback
+
+                except ClaudeAnalysisError:
+                    # Do not silently report a successful AI analysis.
+                    return response(502, {
+                        "error": (
+                            "Claude analysis failed. Check the API "
+                            "configuration and try again."
+                        ),
+                        "skill_analysis": result,
+                    })
+
             return response(200, result)
 
         except (json.JSONDecodeError, UnicodeDecodeError):
