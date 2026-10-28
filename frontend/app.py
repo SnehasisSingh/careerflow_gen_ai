@@ -1,8 +1,12 @@
+import io
+import logging
 import os
 
 import requests
 import streamlit as st
+from pypdf import PdfReader
 
+logger = logging.getLogger(__name__)
 
 DEFAULT_API_URL = (
     "https://uy0pxf91sl.execute-api.ap-southeast-2.amazonaws.com"
@@ -22,6 +26,13 @@ st.write(
     "Compare your resume with a job description, identify skill gaps, "
     "and understand how well your skills match the role."
 )
+
+resume_input_method = st.radio(
+    "How would you like to provide your resume?",
+    options=["Upload PDF", "Paste resume text"],
+    horizontal=True,
+)
+resume_text = ""
 
 api_url = st.sidebar.text_input(
     "CareerLens API URL",
@@ -44,11 +55,69 @@ if use_claude:
 else:
     st.caption("Claude AI feedback is off. Only skill matching will run.")
 
-resume_text = st.text_area(
-    "Paste your resume",
-    height=250,
-    placeholder="Paste your resume text here...",
-)
+
+if resume_input_method == "Upload PDF":
+    uploaded_pdf = st.file_uploader(
+        "Upload your resume",
+        type=["pdf"],
+        help="Upload a text-based PDF up to 5 MB.",
+        key="resume_pdf",
+    )
+
+    if uploaded_pdf is not None:
+        pdf_bytes = uploaded_pdf.getvalue()
+
+        if len(pdf_bytes) > 5 * 1024 * 1024:
+            st.error("PDF must be 5 MB or smaller.")
+
+        else:
+            try:
+                reader = PdfReader(io.BytesIO(pdf_bytes))
+
+                if reader.is_encrypted:
+                    st.error(
+                        "This PDF is password-protected. "
+                        "Please upload an unlocked PDF."
+                    )
+
+                elif len(reader.pages) > 30:
+                    st.error(
+                        "Please upload a PDF with 30 pages or fewer."
+                    )
+
+                else:
+                    resume_text = "\n".join(
+                        page.extract_text() or ""
+                        for page in reader.pages
+                    ).strip()
+
+                    if resume_text:
+                        st.success("Resume text extracted successfully.")
+
+                        with st.expander("Preview extracted resume text"):
+                            st.text(resume_text)
+
+                    else:
+                        st.warning(
+                            "No selectable text found. "
+                            "If this is a scanned PDF, paste the text "
+                            "or use OCR to extract it."
+                        )
+
+            except Exception:
+                st.error(
+                    "Unable to read this PDF. "
+                    "Please try another PDF."
+                )
+
+else:
+    resume_text = st.text_area(
+        "Paste your resume text",
+        height=250,
+        placeholder="Paste your complete resume here...",
+        key="resume_manual_text",
+    )
+
 
 job_description = st.text_area(
     "Paste the job description",

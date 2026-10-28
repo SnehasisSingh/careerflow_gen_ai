@@ -13,12 +13,6 @@ except ModuleNotFoundError as exc:
     if exc.name != "services":
         raise
 
-    from backend.services.career_analyzer import analyze_career
-    from backend.services.claude_analyzer import (
-        ClaudeAnalysisError,
-        analyze_resume_with_claude,
-    )
-
 
 # Configure logging
 logger = logging.getLogger()

@@ -60,7 +60,10 @@ The JSON must contain these fields:
 Requirements:
 - Give practical, specific feedback relevant to the job.
 - Suggested resume bullets must not invent achievements or metrics.
-- Interview questions should be relevant to the role and skill gaps.
+- Interview questions should be relevant to the role and skill gaps.In job description 
+            if perticular company is mentioned then give interview questions related to that company.
+            if no company is mentioned then give general interview questions related to the role.
+            if multiple companies are mentioned then give interview questions related to all the companies. 
 - Escape quotation marks and special characters correctly in JSON.
 - Ensure every string is complete and the JSON object is closed.
 

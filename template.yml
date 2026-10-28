@@ -7,7 +7,7 @@ Description: CareerFlow AI - Serverless infrastructure
 Globals:
   Function:
     Runtime: python3.12
-    Timeout: 15
+    Timeout: 60
     MemorySize: 256
 
 Resources:
