@@ -26,7 +26,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 dynamodb = boto3.resource("dynamodb")
-table = dynamodb.Table(os.environ["TableName"])
+table = dynamodb.Table(os.environ["TABLE_NAME"])
 
 def store_analysis_result(
     session_id,
@@ -74,11 +74,14 @@ def store_analysis_result(
 
 
 def response(status_code, data):
+    CORS_HEADERS = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "OPTIONS,POST",
+        "Access-Control-Allow-Headers": "Content-Type",
+    }
     return {
         "statusCode": status_code,
-        "headers": {
-            "Content-Type": "application/json"
-        },
+        "headers": CORS_HEADERS,
         "body": json.dumps(data),
     }
 

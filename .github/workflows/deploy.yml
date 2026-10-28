@@ -86,11 +86,11 @@ jobs:
         run: sam build --template-file template.yml
 
       # 8. Copy a file from GitHub repository to S3
-      - name: Upload career_analyzer.py to S3
-        run: |
-          aws s3 cp frontend/index.html \
-            s3://careerflow-ai-dev-careerflowbucket-rpm6ys4ywfsa/frontend/index.html \
-            --region "${{ vars.AWS_REGION }}"
+      # - name: Upload career_analyzer.py to S3
+      #   run: |
+      #     aws s3 cp frontend/index.html \
+      #       s3://careerflow-ai-dev-careerflowbucket-rpm6ys4ywfsa/frontend/index.html \
+      #       --region "${{ vars.AWS_REGION }}"
       # 9. Deploy AWS resources
       - name: Deploy to AWS
         run: |
