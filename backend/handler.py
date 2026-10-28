@@ -2,6 +2,13 @@
 import base64
 import json
 import logging
+import os
+import uuid
+import logging
+from datetime import datetime, timezone
+from decimal import Decimal
+
+import boto3
 
 try:
     from services.career_analyzer import analyze_career
@@ -17,6 +24,53 @@ except ModuleNotFoundError as exc:
 # Configure logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+
+dynamodb = boto3.resource("dynamodb")
+table = dynamodb.Table(os.environ["TableName"])
+
+def store_analysis_result(
+    session_id,
+    person_name,
+    status,
+    match_percentage=None,
+    matched_skills=None,
+    missing_skills=None,
+    error_message=None,
+    ai_feedback=None
+):
+    item = {
+        "session_id": session_id,
+        "person_name": person_name or "Unknown",
+        "status": status,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "ai_feedback":ai_feedback
+    }
+
+    if match_percentage is not None:
+        # DynamoDB boto3 resource does not accept Python floats.
+        item["match_percentage"] = Decimal(str(match_percentage))
+
+    if matched_skills is not None:
+        item["matched_skills"] = matched_skills
+
+    if missing_skills is not None:
+        item["missing_skills"] = missing_skills
+
+    if error_message:
+        # Avoid storing sensitive details or full resume text in error logs.
+        item["error_message"] = str(error_message)[:500]
+
+    try:
+        table.put_item(Item=item)
+        logger.info(
+            "Analysis record stored: session_id=%s status=%s",
+            session_id,
+            status,
+        )
+    except Exception:
+        # Do not silently report a successful save if DynamoDB fails.
+        logger.exception("Failed to store analysis record")
+        raise
 
 
 def response(status_code, data):
@@ -66,7 +120,8 @@ def lambda_handler(event, context):
                 return response(400, {
                     "error": "Request body must be a JSON object"
                 })
-
+            session_id = str(uuid.uuid4())
+            person_name = body.get("person_name", "").strip()
             resume_text = body.get("resume_text", "")
             job_description = body.get("job_description", "")
 
@@ -123,7 +178,15 @@ def lambda_handler(event, context):
             # Claude analysis is optional to control API costs
             if use_claude:
                 logger.info("Claude resume analysis requested")
-
+                store_analysis_result(
+                    session_id=session_id,
+                    person_name=person_name,
+                    status="SUCCESS",
+                    match_percentage=result.get("match_percentage"),
+                    matched_skills=result.get("matched_skills", []),
+                    missing_skills=result.get("missing_skills", []),
+                    ai_feedback=True
+                )
                 try:
                     claude_feedback = analyze_resume_with_claude(
                         resume_text,
@@ -148,6 +211,15 @@ def lambda_handler(event, context):
             else:
                 logger.info(
                     "Claude analysis skipped; use_claude is false"
+                )
+                store_analysis_result(
+                    session_id=session_id,
+                    person_name=person_name,
+                    status="SUCCESS",
+                    match_percentage=result.get("match_percentage"),
+                    matched_skills=result.get("matched_skills", []),
+                    missing_skills=result.get("missing_skills", []),
+                    ai_feedback=True
                 )
 
             logger.info("Career analysis request completed successfully")

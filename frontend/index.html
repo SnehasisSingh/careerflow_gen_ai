@@ -1,0 +1,211 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CareerFlow AI | CareerLens</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 900px;
+      margin: 35px auto;
+      padding: 20px;
+      background: #f5f7fb;
+      color: #202938;
+    }
+    h1, h2 { color: #2447a8; }
+    textarea {
+      width: 100%;
+      min-height: 180px;
+      padding: 12px;
+      margin: 8px 0 18px;
+      box-sizing: border-box;
+      border: 1px solid #ccd3df;
+      border-radius: 8px;
+      font: inherit;
+    }
+    button {
+      padding: 12px 20px;
+      background: #2447a8;
+      color: white;
+      border: 0;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    button:disabled { opacity: .6; cursor: wait; }
+    .panel {
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
+      margin-top: 20px;
+    }
+    .muted { color: #596579; }
+    #status { white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>🎯 CareerFlow AI</h1>
+  <p>CareerLens — Resume &amp; Job Match Analyzer</p>
+  <p class="muted">
+    Compare your resume with a job description and identify skill gaps.
+  </p>
+
+  <div class="panel">
+
+    <label for="personName">Your name</label>
+    <input
+        id="personName"
+        type="text"
+        placeholder="Enter your full name"
+        required
+    />
+    <label for="resume"><strong>Resume text</strong></label>
+    <textarea id="resume" placeholder="Paste your resume text here"></textarea>
+
+    <label for="job"><strong>Job description</strong></label>
+    <textarea id="job" placeholder="Paste the target job description here"></textarea>
+
+    <label>
+      <input type="checkbox" id="claude">
+      Enable Claude AI feedback (may incur API charges)
+    </label>
+    <br><br>
+    <button id="analyze">Analyze Resume</button>
+    <p id="status" role="status"></p>
+  </div>
+
+  <div id="results" class="panel" hidden>
+    <h2>Analysis Results</h2>
+    <h3>Skill Match: <span id="score">0%</span></h3>
+    <progress id="progress" max="100" value="0" style="width:100%"></progress>
+
+    <h3>✅ Matched Skills</h3>
+    <ul id="matched"></ul>
+
+    <h3>📌 Missing Skills</h3>
+    <ul id="missing"></ul>
+
+    <details>
+      <summary>All detected skills</summary>
+      <p>Resume skills</p>
+      <ul id="resumeSkills"></ul>
+      <p>Required skills</p>
+      <ul id="requiredSkills"></ul>
+    </details>
+
+    <section id="claudeResults" hidden>
+      <h2>🤖 Claude AI Feedback</h2>
+      <div id="feedback"></div>
+    </section>
+  </div>
+
+  <script>
+    const API_URL =
+      "https://uy0pxf91sl.execute-api.ap-southeast-2.amazonaws.com/Stage/career/analyze";
+
+    const $ = id => document.getElementById(id);
+
+    function renderList(id, items) {
+      const list = $(id);
+      list.replaceChildren();
+      (items || []).forEach(item => {
+        const li = document.createElement("li");
+        li.textContent = item;
+        list.appendChild(li);
+      });
+    }
+
+    function renderFeedback(feedback) {
+      const container = $("feedback");
+      container.replaceChildren();
+
+      const sections = [
+        ["Summary", feedback.summary],
+        ["Strengths", feedback.strengths],
+        ["Improvement Areas", feedback.improvement_areas],
+        ["Suggested Resume Bullets", feedback.suggested_resume_bullets],
+        ["Interview Questions", feedback.interview_questions]
+      ];
+
+      sections.forEach(([title, value]) => {
+        const heading = document.createElement("h3");
+        heading.textContent = title;
+        container.appendChild(heading);
+
+        if (Array.isArray(value)) {
+          const list = document.createElement("ul");
+          value.forEach(item => {
+            const li = document.createElement("li");
+            li.textContent = item;
+            list.appendChild(li);
+          });
+          container.appendChild(list);
+        } else {
+          const paragraph = document.createElement("p");
+          paragraph.textContent = value || "";
+          container.appendChild(paragraph);
+        }
+      });
+    }
+
+    $("analyze").addEventListener("click", async () => {
+      const personName = document.getElementById("personName").value.trim();
+      const resume = $("resume").value.trim();
+      const job = $("job").value.trim();
+      const useClaude = $("claude").checked;
+
+      if (!resume || !job || !personName) {
+        $("status").textContent =
+          "Please provide your name, resume, and job description.";
+        return;
+      }
+
+      $("analyze").disabled = true;
+      $("status").textContent = "Analyzing resume...";
+      $("results").hidden = true;
+
+      try {
+        const response = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            person_name: personName,
+            resume_text: resume,
+            job_description: job,
+            use_claude: useClaude
+          })
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(data.error || `API request failed (${response.status}).`);
+        }
+
+        $("score").textContent = `${data.match_percentage ?? 0}%`;
+        $("progress").value = Math.max(
+          0, Math.min(100, Number(data.match_percentage) || 0)
+        );
+
+        renderList("matched", data.matched_skills);
+        renderList("missing", data.missing_skills);
+        renderList("resumeSkills", data.resume_skills);
+        renderList("requiredSkills", data.required_skills);
+
+        const feedback = data.claude_feedback;
+        $("claudeResults").hidden = !useClaude || !feedback;
+        if (useClaude && feedback) renderFeedback(feedback);
+
+        $("results").hidden = false;
+        $("status").textContent = "Analysis completed.";
+      } catch (error) {
+        $("status").textContent =
+          `${error.message}\nCheck API availability and CORS configuration.`;
+      } finally {
+        $("analyze").disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

@@ -34,10 +34,11 @@ resume_input_method = st.radio(
 )
 resume_text = ""
 
-api_url = st.sidebar.text_input(
-    "CareerLens API URL",
-    value=os.getenv("CAREERFLOW_API_URL", DEFAULT_API_URL),
-)
+# api_url = st.sidebar.text_input(
+#     "CareerLens API URL",
+#     value=os.getenv("CAREERFLOW_API_URL", DEFAULT_API_URL),
+# )
+api_url = DEFAULT_API_URL
 
 # Claude is optional to help control API costs.
 use_claude = st.toggle(
